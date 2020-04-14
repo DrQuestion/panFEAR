@@ -3,6 +3,7 @@ import argparse
 import scipy.stats as stats
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 file_path = r"C:\Users\aless\Documents\UniTn\SecondSemester\MicrobialGenomics\Project\Group_1" \
             r"\roary_out_i95_cd90_e_flag\gene_presence_absence.csv"
@@ -107,6 +108,7 @@ def fisher_test(functions_db, group_genome, group_genome_size, out_of_group_geno
 
 def pval_correct(tests_results, correction):
     # Statistical p-value corrections:
+    global adj_p_values
     len_tests = len(tests_results)
     if correction.lower() in ['b', 'bonf', 'bonferroni']:
         print(f'Selected p-values correction is Bonferroni, {len_tests} tests done')
@@ -128,6 +130,16 @@ def store_results(tests_results, output_folder):
     res_df.to_csv(os.path.join(output_folder, 'panFEAR.csv'), header=False, index=False)
 
 
+def plot_results(test_results):
+    p_values = -np.log10(list(map(lambda x: x[-1], test_results))[:15])
+    labels = list(map(lambda x: x[0], test_results))[:15]
+    y_pos = np.arange(len(labels))
+    plt.tight_layout()
+    plt.barh(y_pos, p_values)
+    plt.yticks(y_pos, labels)
+    plt.show()
+
+
 def main(args):
     gene_p_a_file = args.gene_presence_absence
     filter_hypothetical_proteins = args.filter_hypothetical_proteins
@@ -138,12 +150,14 @@ def main(args):
     output_folder = args.output_folder
     gene_p_a = pd.read_csv(gene_p_a_file, header=0, usecols=(0, 2, 3))
     functions, group_genome, group_genome_size, out_of_group_genome_size = database_building(gene_p_a, n_bins, filter_hypothetical_proteins, up, lp)
-    tests_result = fisher_test(functions, group_genome, group_genome_size, out_of_group_genome_size)
+    tests_results = fisher_test(functions, group_genome, group_genome_size, out_of_group_genome_size)
     if correction:
-        tests_result = pval_correct(tests_result, correction)
-    store_results(tests_result, output_folder)
+        tests_results = pval_correct(tests_results, correction)
+    store_results(tests_results, output_folder)
+    plot_results(tests_results)
 
 
 if __name__ == '__main__':
     args = check_args()
     main(args)
+

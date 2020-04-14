@@ -1,3 +1,4 @@
+import os
 import argparse
 import scipy.stats as stats
 import pandas as pd
@@ -19,11 +20,12 @@ group_genome = []
 def check_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-gpa', '--gene_presence_absence', help='Roary output file "gene_presence_absence.csv" from which information is retrieved')
-    parser.add_argument('-fhp', '--filter_hypothetical_proteins', help='Flag for excluding "hypothetical protein" from the analysed functions')
-    parser.add_argument('-b', '--n_bins', help='Number of bins in the pangenome')
-    parser.add_argument('-up', '--upper_percent', help='Upper percent among the pangenome of the group of which panFEAR analyses functional enrichment')
-    parser.add_argument('-lp', '--lower_percent', help='Lower percent among the pangenome of the group of which panFEAR analyses functional enrichment')
+    parser.add_argument('-fhp', '--filter_hypothetical_proteins', action='store_true', help='Flag for excluding "hypothetical protein" from the analysed functions')
+    parser.add_argument('-b', '--n_bins', type=int, help='Number of bins in the pangenome')
+    parser.add_argument('-up', '--upper_percent', default=100, help='Upper percent among the pangenome of the group of which panFEAR analyses functional enrichment')
+    parser.add_argument('-lp', '--lower_percent', default=0, help='Lower percent among the pangenome of the group of which panFEAR analyses functional enrichment')
     parser.add_argument('-c', '--correction', help='P-value correction method from multiple tests bias')
+    parser.add_argument('-o', '--output_folder', help='ABSOLUTE! path where to store the produced outputs')  # TODO: try to generalize asap
     args = parser.parse_args()
     return args
 
@@ -119,7 +121,11 @@ def pval_correct(tests_results, correction):
     tests_results = [(el[0], el[1], adj_p_values[i]) for i, el in enumerate(tests_results)]
     return tests_results
 
-# Write resulting matrix
+
+def store_results(tests_results, output_folder):
+    # Write resulting dataframe to output, creates a csv
+    res_df = pd.DataFrame(tests_results)
+    res_df.to_csv(os.path.join(output_folder, 'panFEAR.csv'), header=False, index=False)
 
 
 def main(args):
@@ -129,6 +135,15 @@ def main(args):
     up = args.upper_percent
     lp = args.lower_percent
     correction = args.correction
-    gene_p_a = pd.read_csv(file_path, header=0, usecols=(0, 2, 3))
-    pangenome_size = gene_p_a.shape[0]
-    functions = dict()
+    output_folder = args.output_folder
+    gene_p_a = pd.read_csv(gene_p_a_file, header=0, usecols=(0, 2, 3))
+    functions, group_genome, group_genome_size, out_of_group_genome_size = database_building(gene_p_a, n_bins, filter_hypothetical_proteins, up, lp)
+    tests_result = fisher_test(functions, group_genome, group_genome_size, out_of_group_genome_size)
+    if correction:
+        tests_result = pval_correct(tests_result, correction)
+    store_results(tests_result, output_folder)
+
+
+if __name__ == '__main__':
+    args = check_args()
+    main(args)

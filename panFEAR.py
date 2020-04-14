@@ -1,21 +1,10 @@
 import os
+import warnings
 import argparse
 import scipy.stats as stats
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-
-file_path = r"C:\Users\aless\Documents\UniTn\SecondSemester\MicrobialGenomics\Project\Group_1" \
-            r"\roary_out_i95_cd90_e_flag\gene_presence_absence.csv"
-
-filter_hypothetical_proteins = True
-correction = 'bh'
-
-gene_p_a = pd.read_csv(file_path, header=0, usecols=(0, 2, 3))
-pangenome_size = gene_p_a.shape[0]
-functions_db = dict()
-n_hypothetical = 0
-group_genome = []
 
 
 def check_args():
@@ -26,6 +15,7 @@ def check_args():
     parser.add_argument('-up', '--upper_percent', default=100, help='Upper percent among the pangenome of the group of which panFEAR analyses functional enrichment')
     parser.add_argument('-lp', '--lower_percent', default=0, help='Lower percent among the pangenome of the group of which panFEAR analyses functional enrichment')
     parser.add_argument('-c', '--correction', help='P-value correction method from multiple tests bias')
+    parser.add_argument('-s', '--suffix', default='', help='Suffix to put in front of produced outputs')
     parser.add_argument('-o', '--output_folder', help='ABSOLUTE! path where to store the produced outputs')  # TODO: try to generalize asap
     args = parser.parse_args()
     return args
@@ -124,19 +114,26 @@ def pval_correct(tests_results, correction):
     return tests_results
 
 
-def store_results(tests_results, output_folder):
+def store_results(tests_results, output_folder, suffix):
     # Write resulting dataframe to output, creates a csv
     res_df = pd.DataFrame(tests_results)
-    res_df.to_csv(os.path.join(output_folder, 'panFEAR.csv'), header=False, index=False)
+    res_df.to_csv(os.path.join(output_folder, f'{suffix}_panFEAR.csv'), header=False, index=False)
+    return res_df
 
 
 def plot_results(test_results):
     p_values = -np.log10(list(map(lambda x: x[-1], test_results))[:15])
     labels = list(map(lambda x: x[0], test_results))[:15]
+    df = pd.DataFrame(list(zip(labels, p_values)))
+    plot = df.plot(kind='barh', figsize=(15, 9), width=0.75, legend=False)
     y_pos = np.arange(len(labels))
-    plt.tight_layout()
-    plt.barh(y_pos, p_values)
-    plt.yticks(y_pos, labels)
+    plot.invert_yaxis()
+    #plt.barh(y_pos, p_values)
+    plt.yticks(y_pos, labels, fontsize=15)
+    #plt.figsize=(15, 6)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        plt.tight_layout()
     plt.show()
 
 
@@ -148,16 +145,16 @@ def main(args):
     lp = args.lower_percent
     correction = args.correction
     output_folder = args.output_folder
+    suffix = args.suffix
     gene_p_a = pd.read_csv(gene_p_a_file, header=0, usecols=(0, 2, 3))
     functions, group_genome, group_genome_size, out_of_group_genome_size = database_building(gene_p_a, n_bins, filter_hypothetical_proteins, up, lp)
     tests_results = fisher_test(functions, group_genome, group_genome_size, out_of_group_genome_size)
     if correction:
         tests_results = pval_correct(tests_results, correction)
-    store_results(tests_results, output_folder)
+    store_results(tests_results, output_folder, suffix)
     plot_results(tests_results)
 
 
 if __name__ == '__main__':
     args = check_args()
     main(args)
-
